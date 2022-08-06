@@ -23,9 +23,9 @@ def test_fit_float(
 
     f = step_finder(data, param)
 
-    f.multi_step_finding()
+    f.fit()
 
-    assert f.step_list == [0, 322, 1000]
+    assert f.step_positions == [0, 322, 1000]
     assert f.nsteps == 2
 
 @pytest.mark.parametrize(
@@ -43,7 +43,7 @@ def test_fit_integer(step_finder: type[sks.PoissonStepFinder], param: float):
 
     f = step_finder(data, param)
 
-    f.multi_step_finding()
+    f.fit()
 
-    assert f.step_list == [0, 322, 1000]
+    assert f.step_positions == [0, 322, 1000]
     assert f.nsteps == 2

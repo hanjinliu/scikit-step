@@ -1,7 +1,9 @@
 from __future__ import annotations
+from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 from abc import ABC, abstractmethod
+from ._utils import normalize_prob
 
 # Ideally we should prepare `n = np.arange(1, len(data))` first, and view
 # it many times in get_optimal_splitter like n[:len(self.fw)], but this
@@ -120,41 +122,65 @@ class StepFinderBase(ABC):
     def __init__(self, data: ArrayLike):
         self.data = np.asarray(data)
         self.ndata = self.data.size
-        self.nsteps = 1
-        self.step_list = [0, self.ndata]
-        self._data_fit = None
+        self.step_positions = [0, self.ndata]
+        self._caches: dict[str, Any] = {}
+
+    def __repr__(self) -> str:
+        params = ", ".join(f"{k}={v!r}" for k, v in self.get_params().items())
+        return f"{self.__class__.__name__}({params})"
+
+    def new(self, data: ArrayLike):
+        return self.__class__(data, **self.get_params())
 
     @abstractmethod
-    def multi_step_finding(self):
-        """
-        Run step-finding algorithm and store all the information.
-        """
+    def fit(self):
+        """Run step-finding algorithm and store all the information."""
 
-    def _finalize(self):
-        """
-        Called at the end of fitting.
-        """
-        self._data_fit = np.empty(self.ndata)
-        self.step_list.sort()
-        self.nsteps = len(self.step_list) - 1
-        self.mu_list = np.zeros(self.nsteps)
+    @abstractmethod
+    def get_params(self) -> dict[str, Any]:
+        """Return parameters of the step-finding algorithm as a dictionary."""
 
-        for i in range(self.nsteps):
-            self.mu_list[i] = np.mean(
-                self.data[self.step_list[i] : self.step_list[i + 1]]
-            )
-            self._data_fit[self.step_list[i] : self.step_list[i + 1]] = self.mu_list[i]
+    @property
+    def nsteps(self) -> int:
+        return len(self.step_positions) - 1
 
-        self.len_list = np.diff(self.step_list)
-        self.step_size_list = np.diff(self.mu_list)
+    @property
+    def means(self) -> np.ndarray:
+        if (out := self._caches.get("means", None)) is None:
+            out = self._caches["means"] = np.empty(self.nsteps)
+            for i in range(self.nsteps):
+                out[i] = np.mean(
+                    self.data[self.step_positions[i] : self.step_positions[i + 1]]
+                )
+        return out
 
-        return None
+    @property
+    def lengths(self) -> np.ndarray:
+        if (out := self._caches.get("lengths", None)) is None:
+            out = self._caches["lengths"] = np.diff(self.step_positions)
+        return out
+
+    @property
+    def step_sizes(self) -> np.ndarray:
+        if (out := self._caches.get("step_sizes", None)) is None:
+            out = self._caches["step_sizes"] = np.diff(self.means)
+        return out
+
+    @property
+    def data_fit(self) -> np.ndarray:
+        if (out := self._caches.get("data_fit", None)) is None:
+            out = self._caches["data_fit"] = np.empty(self.data.size)
+            means = self.means
+            for i in range(self.nsteps):
+                out[self.step_positions[i] : self.step_positions[i + 1]] = means[i]
+
+        return out
 
     def plot(self):
         import matplotlib.pyplot as plt
 
         plt.plot(self.data, color="lightgray", label="raw data")
-        plt.plot(self._data_fit, color="red", label="fit")
+        plt.plot(self.data_fit, color="red", label="fit")
         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0)
         plt.show()
         return None
@@ -166,7 +192,7 @@ class RecursiveStepFinder(StepFinderBase):
             return None
         s, dx = mom.get_optimal_splitter()
         if self._continue(s):
-            self.step_list.append(x0 + dx)
+            self.step_positions.append(x0 + dx)
             mom1, mom2 = mom.split(dx)
             self._append_steps(mom1, x0=x0)
             self._append_steps(mom2, x0=x0 + dx)
@@ -178,9 +204,28 @@ class RecursiveStepFinder(StepFinderBase):
     def _continue(self, s) -> bool:
         """Check if recursive step needs continue."""
 
-    def multi_step_finding(self):
+    def fit(self):
+        self._caches.clear()
         mom = self._MOMENT_CLASS.from_array(self.data)
         self._data_fit = np.full(self.ndata, mom.total[0] / self.ndata)
         self._append_steps(mom)
-        self._finalize()
+        self.step_positions.sort()
         return self
+
+
+class TransitionProbabilityMixin(StepFinderBase):
+    prob: float
+    penalty: float
+    ndata: int
+
+    def _init_probability(self, prob: float | None):
+        if prob is not None:
+            if not 0.0 < prob < 0.5:
+                raise ValueError("prob must be in range 0.0 < prob < 0.5.")
+            self.prob = prob
+        else:
+            self.prob = 1 / (1 + np.sqrt(self.ndata))
+        self.penalty = np.log(self.prob / (1 - self.prob))
+
+    def get_params(self) -> dict[str, float]:
+        return {"prob": self.prob}

@@ -38,13 +38,16 @@ class TtestStepFinder(RecursiveStepFinder):
         self.sigma = normalize_sigma(sigma, data)
         self._student_t = student_t
 
+    def get_params(self) -> dict[str, float]:
+        return {"alpha": self.alpha, "sigma": self.sigma}
+
     def _append_steps(self, mom: TtestMoment, x0: int = 0):
         if len(mom) < 3:
             return None
         tk, dx = mom.get_optimal_splitter()
         t_cri = self._student_t.ppf(1 - self.alpha / 2, len(mom))
         if t_cri < tk / self.sigma:
-            self.step_list.append(x0 + dx)
+            self.step_positions.append(x0 + dx)
             mom1, mom2 = mom.split(dx)
             self._append_steps(mom1, x0=x0)
             self._append_steps(mom2, x0=x0 + dx)

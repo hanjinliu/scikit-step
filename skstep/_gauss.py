@@ -2,8 +2,13 @@ from __future__ import annotations
 from typing import Tuple
 import numpy as np
 import heapq
-from ._base import MomentBase, StepFinderBase, RecursiveStepFinder
-from ._utils import normalize_sigma, normalize_prob
+from ._base import (
+    MomentBase,
+    StepFinderBase,
+    RecursiveStepFinder,
+    TransitionProbabilityMixin,
+)
+from ._utils import normalize_sigma
 
 _HeapItem = Tuple[float, int, int, "GaussMoment"]
 
@@ -39,7 +44,7 @@ class GaussMoment(MomentBase):
         return chi2[x] - self.chi2, x + 1
 
 
-class GaussStepFinder(StepFinderBase):
+class GaussStepFinder(TransitionProbabilityMixin, StepFinderBase):
     """
     Gauss-distribution step finding.
 
@@ -63,12 +68,10 @@ class GaussStepFinder(StepFinderBase):
             then This algorithm will be identical to the original Kalafut-Visscher's.
         """
         super().__init__(np.asarray(data))
-        self.prob = normalize_prob(prob, self.ndata)
-        self.penalty = np.log(self.prob / (1 - self.prob))
+        self._init_probability(prob)
 
-    def multi_step_finding(self):
+    def fit(self):
         g = GaussMoment.from_array(self.data)
-        self.fit = np.full(self.ndata, g.total[0] / self.ndata)
         chi2 = g.chi2  # initialize total chi^2
         heap = Heap()  # chi^2 change (<0), dx, x0, GaussMoment object of the step
         heap.push(g.get_optimal_splitter() + (0, g))
@@ -84,12 +87,12 @@ class GaussStepFinder(StepFinderBase):
                     heap.push(g1.get_optimal_splitter() + (x0, g1))
                 if len(g2) > 2:
                     heap.push(g2.get_optimal_splitter() + (x, g2))
-                self.step_list.append(x)
+                self.step_positions.append(x)
                 chi2 += dchi2
             else:
                 break
 
-        self._finalize()
+        self.step_positions.sort()
         return self
 
 
@@ -107,7 +110,7 @@ class SDFixedGaussMoment(MomentBase):
         return sq[x] - self.sq, x + 1
 
 
-class SDFixedGaussStepFinder(RecursiveStepFinder):
+class SDFixedGaussStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
     Gauss-distribution step finding with fixed standard deviation of noise.
     If standard deviation of noise is unknown then it will be estimated by
@@ -120,9 +123,11 @@ class SDFixedGaussStepFinder(RecursiveStepFinder):
 
     def __init__(self, data, prob: float | None = None, sigma: float | None = None):
         super().__init__(np.asarray(data, dtype=np.float64))
-        self.prob = normalize_prob(prob, self.ndata)
+        self._init_probability(prob)
         self.sigma = normalize_sigma(sigma, data)
-        self.penalty = np.log(self.prob / (1 - self.prob))
+
+    def get_params(self) -> dict[str, float]:
+        return {"prob": self.prob, "sigma": self.sigma}
 
     def _continue(self, sq) -> bool:
         return self.penalty + sq / (2 * self.sigma**2) > 0

@@ -2,8 +2,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.special import gammaln, logsumexp
-from ._base import MomentBase, RecursiveStepFinder
-from ._utils import normalize_prob
+from ._base import MomentBase, RecursiveStepFinder, TransitionProbabilityMixin
 
 _EPS = 1e-12
 
@@ -22,7 +21,7 @@ class PoissonMoment(MomentBase):
         return slogm[x] - self.slogm, x + 1
 
 
-class PoissonStepFinder(RecursiveStepFinder):
+class PoissonStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
     Poisson distribution step finding. Input must be integer.
     """
@@ -34,8 +33,7 @@ class PoissonStepFinder(RecursiveStepFinder):
         if not np.issubdtype(self.data.dtype, np.integer):
             raise TypeError("In PoissonStep, non-integer data type is forbidden.")
 
-        self.prob = normalize_prob(prob, self.ndata)
-        self.penalty = np.log(self.prob / (1 - self.prob))
+        self._init_probability(prob)
 
     def _continue(self, dlogL):
         return self.penalty + dlogL > 0
@@ -82,6 +80,9 @@ class BayesianPoissonStepFinder(RecursiveStepFinder):
         self.skept = skept
         if not np.issubdtype(self.data.dtype, np.integer):
             raise TypeError("In PoissonStep, non-integer data type is forbidden.")
+
+    def get_params(self) -> dict[str, float]:
+        return {"skept": self.skept}
 
     def _continue(self, logbf):
         return np.log(self.skept) < logbf
