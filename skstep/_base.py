@@ -188,16 +188,29 @@ class StepFinderBase(ABC):
 
         return out
 
-    def plot(self):
+    def plot(self, range: tuple[int, int] | None = None):
         import matplotlib.pyplot as plt
 
-        plt.plot(self.data, color="lightgray", label="raw data")
-        plt.plot(self.data_fit, color="red", label="fit")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0)
-        plt.show()
-        return None
+        if range is None:
+            sl = slice(None)
+        else:
+            sl = slice(*range)
 
-    def fit_chunkwise(self, chunksize: int = 5000, overlap: int = 2500) -> Self:
+        plt.plot(self.data[sl], color="lightgray", label="raw data")
+        plt.plot(self.data_fit[sl], color="red", label="fit")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0)
+
+        return plt.gca()
+
+    def fit_chunkwise(
+        self,
+        chunksize: int = 50000,
+        overlap: int = 2500,
+        scheduler="threads",
+    ) -> Self:
+        if self.ndata < chunksize:
+            return self.fit()
+
         from dask import array as da
 
         darr: da.core.Array = da.from_array(self.data, chunks=chunksize)  # type: ignore
@@ -212,7 +225,7 @@ class StepFinderBase(ABC):
             **self.get_params(),
             dtype=np.uint64,
             trim=False,
-        ).compute()
+        ).compute(scheduler=scheduler)
         self._step_positions = list(out)
         return self
 
@@ -254,8 +267,7 @@ class RecursiveStepFinder(StepFinderBase):
             mom1, mom2 = mom.split(dx)
             self._append_steps(mom1, x0=x0)
             self._append_steps(mom2, x0=x0 + dx)
-        else:
-            pass
+
         return None
 
     @abstractmethod
@@ -265,7 +277,6 @@ class RecursiveStepFinder(StepFinderBase):
     def fit(self) -> Self:
         self._caches.clear()
         mom = self._MOMENT_CLASS.from_array(self.data)
-        self._data_fit = np.full(self.ndata, mom.total[0] / self.ndata)
         self._append_steps(mom)
         self.step_positions.sort()
         return self

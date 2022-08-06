@@ -23,7 +23,7 @@ class PoissonMoment(MomentBase):
 
 class PoissonStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
-    Poisson distribution step finding. Input must be integer.
+    Poisson distribution step finding.
     """
 
     _MOMENT_CLASS = PoissonMoment

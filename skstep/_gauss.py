@@ -46,7 +46,7 @@ class GaussMoment(MomentBase):
 
 class GaussStepFinder(TransitionProbabilityMixin, StepFinderBase):
     """
-    Gauss-distribution step finding.
+    Kalafut-Visscher's step finding algorithm on data with Gaussian noise.
 
     Reference
     ---------
