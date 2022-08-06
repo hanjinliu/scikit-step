@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import numpy as np
 from numpy.typing import ArrayLike
 from abc import ABC, abstractmethod
-from ._utils import normalize_prob
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 # Ideally we should prepare `n = np.arange(1, len(data))` first, and view
 # it many times in get_optimal_splitter like n[:len(self.fw)], but this
@@ -44,7 +46,7 @@ class MomentBase(ABC):
         """
         return self.fw.shape[1] + 1
 
-    def split(self, i: int):
+    def split(self, i: int) -> tuple[Self, Self]:
         """
         Split a Moment object into to Moment objects at position i.
         This means :i-1 will be the former, and i: will be the latter.
@@ -88,7 +90,7 @@ class MomentBase(ABC):
         return m1, m2
 
     @classmethod
-    def from_array(cls, data: np.ndarray):
+    def from_array(cls, data: np.ndarray) -> Self:
         """
         Initialization using all the data.
 
@@ -105,7 +107,7 @@ class MomentBase(ABC):
 
     @abstractmethod
     def get_optimal_splitter(self) -> tuple[float, int]:
-        pass
+        """Return the best index to split, and the loss at the split point."""
 
 
 def _complement_fw(bw: np.ndarray, total: np.ndarray) -> np.ndarray:
@@ -122,7 +124,7 @@ class StepFinderBase(ABC):
     def __init__(self, data: ArrayLike):
         self.data = np.asarray(data)
         self.ndata = self.data.size
-        self.step_positions = [0, self.ndata]
+        self._step_positions = [0, self.ndata]
         self._caches: dict[str, Any] = {}
 
     def __repr__(self) -> str:
@@ -130,10 +132,11 @@ class StepFinderBase(ABC):
         return f"{self.__class__.__name__}({params})"
 
     def new(self, data: ArrayLike):
+        """Construct a new StepFinder object with new data."""
         return self.__class__(data, **self.get_params())
 
     @abstractmethod
-    def fit(self):
+    def fit(self) -> Self:
         """Run step-finding algorithm and store all the information."""
 
     @abstractmethod
@@ -141,11 +144,17 @@ class StepFinderBase(ABC):
         """Return parameters of the step-finding algorithm as a dictionary."""
 
     @property
+    def step_positions(self) -> list[int]:
+        return self._step_positions
+
+    @property
     def nsteps(self) -> int:
+        """Number of steps."""
         return len(self.step_positions) - 1
 
     @property
     def means(self) -> np.ndarray:
+        """Mean of each step."""
         if (out := self._caches.get("means", None)) is None:
             out = self._caches["means"] = np.empty(self.nsteps)
             for i in range(self.nsteps):
@@ -156,18 +165,21 @@ class StepFinderBase(ABC):
 
     @property
     def lengths(self) -> np.ndarray:
+        """Length of each step."""
         if (out := self._caches.get("lengths", None)) is None:
             out = self._caches["lengths"] = np.diff(self.step_positions)
         return out
 
     @property
     def step_sizes(self) -> np.ndarray:
+        """Array of step sizes (means[i+1] - means[i])."""
         if (out := self._caches.get("step_sizes", None)) is None:
             out = self._caches["step_sizes"] = np.diff(self.means)
         return out
 
     @property
     def data_fit(self) -> np.ndarray:
+        """The fitting data."""
         if (out := self._caches.get("data_fit", None)) is None:
             out = self._caches["data_fit"] = np.empty(self.data.size)
             means = self.means
@@ -185,8 +197,54 @@ class StepFinderBase(ABC):
         plt.show()
         return None
 
+    def fit_chunkwise(self, chunksize: int = 5000, overlap: int = 2500) -> Self:
+        from dask import array as da
+
+        darr: da.core.Array = da.from_array(self.data, chunks=chunksize)  # type: ignore
+
+        out = darr.map_overlap(
+            _fit_chunk_data,
+            depth=overlap,
+            boundary="none",
+            cls=self.__class__,
+            overlap=overlap,
+            chunksize=chunksize,
+            **self.get_params(),
+            dtype=np.uint64,
+            trim=False,
+        ).compute()
+        self._step_positions = list(out)
+        return self
+
+
+def _fit_chunk_data(
+    arr: np.ndarray,
+    cls: type[StepFinderBase],
+    block_info: dict = {},
+    overlap: int = 0,
+    chunksize: int = 0,
+    **kwargs,
+) -> np.ndarray:
+    self = cls(arr, **kwargs)
+    self.fit()
+    block_0 = block_info[0]
+    chunk_loc = block_0["chunk-location"][0]
+    nchunks = block_0["num-chunks"][0]
+    pos = np.array(self.step_positions, dtype=np.uint64)
+    if 0 < chunk_loc < nchunks - 1:
+        pos = pos[(overlap <= pos) & (pos < (arr.size - overlap))]
+        return pos - overlap + chunksize * chunk_loc
+    elif chunk_loc == 0:
+        pos = pos[(pos < (arr.size - overlap))]
+        return pos
+    else:
+        pos = pos[(overlap <= pos)]
+        return pos - overlap + chunksize * chunk_loc
+
 
 class RecursiveStepFinder(StepFinderBase):
+    """Step finders that can be recursively fitted."""
+
     def _append_steps(self, mom: MomentBase, x0: int = 0):
         if len(mom) < 3:
             return None
@@ -204,7 +262,7 @@ class RecursiveStepFinder(StepFinderBase):
     def _continue(self, s) -> bool:
         """Check if recursive step needs continue."""
 
-    def fit(self):
+    def fit(self) -> Self:
         self._caches.clear()
         mom = self._MOMENT_CLASS.from_array(self.data)
         self._data_fit = np.full(self.ndata, mom.total[0] / self.ndata)
@@ -214,9 +272,10 @@ class RecursiveStepFinder(StepFinderBase):
 
 
 class TransitionProbabilityMixin(StepFinderBase):
+    """Step finders that take transition probability as a initial parameter."""
+
     prob: float
     penalty: float
-    ndata: int
 
     def _init_probability(self, prob: float | None):
         if prob is not None:

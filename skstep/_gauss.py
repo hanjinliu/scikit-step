@@ -70,7 +70,7 @@ class GaussStepFinder(TransitionProbabilityMixin, StepFinderBase):
         super().__init__(np.asarray(data))
         self._init_probability(prob)
 
-    def fit(self):
+    def fit(self) -> GaussStepFinder:
         g = GaussMoment.from_array(self.data)
         chi2 = g.chi2  # initialize total chi^2
         heap = Heap()  # chi^2 change (<0), dx, x0, GaussMoment object of the step
