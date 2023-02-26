@@ -213,7 +213,7 @@ class StepFinderBase(ABC):
 
         from dask import array as da
 
-        darr: da.core.Array = da.from_array(self.data, chunks=chunksize)  # type: ignore
+        darr: da.Array = da.from_array(self.data, chunks=chunksize)  # type: ignore
 
         out = darr.map_overlap(
             _fit_chunk_data,

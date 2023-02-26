@@ -112,11 +112,11 @@ class SDFixedGaussMoment(MomentBase):
 
 class SDFixedGaussStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
-    Gauss-distribution step finding with fixed standard deviation of noise.
+    Gauss-distribution step finding with fixed standard deviation of noise
+
     If standard deviation of noise is unknown then it will be estimated by
     wavelet method. Compared to GaussStep, this algorithm detects more steps
     in some cases and less in others.
-
     """
 
     _MOMENT_CLASS = SDFixedGaussMoment
