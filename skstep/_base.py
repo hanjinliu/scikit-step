@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from abc import ABC, abstractmethod
 
 if TYPE_CHECKING:
@@ -32,9 +32,9 @@ class MomentBase(ABC):
 
     def __init__(
         self,
-        fw: np.ndarray,
-        bw: np.ndarray,
-        total: np.ndarray,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
     ):
         self.fw = fw
         self.bw = bw
@@ -90,7 +90,7 @@ class MomentBase(ABC):
         return m1, m2
 
     @classmethod
-    def from_array(cls, data: np.ndarray) -> Self:
+    def from_array(cls, data: NDArray[np.number]) -> Self:
         """
         Initialization using all the data.
 
@@ -110,12 +110,16 @@ class MomentBase(ABC):
         """Return the best index to split, and the loss at the split point."""
 
 
-def _complement_fw(bw: np.ndarray, total: np.ndarray) -> np.ndarray:
-    return total.reshape(-1, 1) - bw  # type: ignore
+def _complement_fw(
+    bw: NDArray[np.number], total: NDArray[np.number]
+) -> NDArray[np.number]:
+    return total.reshape(-1, 1) - bw
 
 
-def _complement_bw(fw: np.ndarray, total: np.ndarray) -> np.ndarray:
-    return total.reshape(-1, 1) - fw  # type: ignore
+def _complement_bw(
+    fw: NDArray[np.number], total: NDArray[np.number]
+) -> NDArray[np.number]:
+    return total.reshape(-1, 1) - fw
 
 
 class StepFinderBase(ABC):
@@ -153,7 +157,7 @@ class StepFinderBase(ABC):
         return len(self.step_positions) - 1
 
     @property
-    def means(self) -> np.ndarray:
+    def means(self) -> NDArray[np.floating]:
         """Mean of each step."""
         if (out := self._caches.get("means", None)) is None:
             out = self._caches["means"] = np.empty(self.nsteps)
@@ -164,21 +168,21 @@ class StepFinderBase(ABC):
         return out
 
     @property
-    def lengths(self) -> np.ndarray:
+    def lengths(self) -> NDArray[np.integer]:
         """Length of each step."""
         if (out := self._caches.get("lengths", None)) is None:
             out = self._caches["lengths"] = np.diff(self.step_positions)
         return out
 
     @property
-    def step_sizes(self) -> np.ndarray:
+    def step_sizes(self) -> NDArray[np.integer]:
         """Array of step sizes (means[i+1] - means[i])."""
         if (out := self._caches.get("step_sizes", None)) is None:
             out = self._caches["step_sizes"] = np.diff(self.means)
         return out
 
     @property
-    def data_fit(self) -> np.ndarray:
+    def data_fit(self) -> NDArray[np.number]:
         """The fitting data."""
         if (out := self._caches.get("data_fit", None)) is None:
             out = self._caches["data_fit"] = np.empty(self.data.size)
