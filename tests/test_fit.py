@@ -21,12 +21,12 @@ def test_fit_float(
         rng.normal(4.8, 1.0, size=678)
     ])
 
-    f = step_finder(data, param)
+    f = step_finder(param)
 
-    f.fit()
+    res = f.fit(data)
 
-    assert f.step_positions == [0, 322, 1000]
-    assert f.nsteps == 2
+    assert list(res.step_positions) == [0, 322, 1000]
+    assert res.nsteps == 2
 
 @pytest.mark.parametrize(
     ["step_finder", "param"], [
@@ -41,9 +41,9 @@ def test_fit_integer(step_finder: type[sks.PoissonStepFinder], param: float):
         rng.poisson(52.2, size=678)
     ])
 
-    f = step_finder(data, param)
+    f = step_finder(param)
 
-    f.fit()
+    res = f.fit(data)
 
-    assert f.step_positions == [0, 322, 1000]
-    assert f.nsteps == 2
+    assert list(res.step_positions) == [0, 322, 1000]
+    assert res.nsteps == 2

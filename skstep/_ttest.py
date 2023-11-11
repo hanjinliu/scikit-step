@@ -1,10 +1,28 @@
 from __future__ import annotations
+from typing import Any
 import numpy as np
-from ._base import MomentBase, RecursiveStepFinder
+from numpy.typing import NDArray
+from ._base import RecursiveStepFinder
+from ._moments import RecursiveMoment
 from ._utils import normalize_sigma
 
 
-class TtestMoment(MomentBase):
+class TtestMoment(RecursiveMoment):
+    def __init__(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+        alpha: float,
+        sigma: float,
+    ):
+        from scipy.stats import t
+
+        super().__init__(fw, bw, total)
+        self._alpha = alpha
+        self._sigma = sigma
+        self._t = t
+
     def get_optimal_splitter(self):
         n = np.arange(1, len(self))
         tk = np.abs(self.fw[0] / n - self.bw[0] / n[::-1]) / np.sqrt(
@@ -12,6 +30,19 @@ class TtestMoment(MomentBase):
         )
         x = int(np.argmax(tk))
         return tk[x], x + 1
+
+    def with_fw_bw(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+    ) -> TtestMoment:
+        """Return a new Moment object with the given array."""
+        return self.__class__(fw, bw, total, self._alpha, self._sigma)
+
+    def _continue(self, tk: Any) -> bool:
+        t_cri = self._t.ppf(1 - self._alpha / 2, len(self))
+        return t_cri < tk / self._sigma
 
 
 class TtestStepFinder(RecursiveStepFinder):
@@ -26,35 +57,27 @@ class TtestStepFinder(RecursiveStepFinder):
     https://doi.org/10.1021/jz501435p
     """
 
-    _MOMENT_CLASS = TtestMoment
-
-    def __init__(self, data, alpha: float = 0.05, sigma: float | None = None):
+    def __init__(self, alpha: float = 0.05, sigma: float | None = None):
         from scipy.stats import t as student_t
 
-        super().__init__(data)
         if not 0 < alpha < 0.5:
-            alpha = 0.05
-        self.alpha = alpha
-        self.sigma = normalize_sigma(sigma, data)
+            raise ValueError("alpha must be in range 0.0 < alpha < 0.5.")
+        self._alpha = alpha
         self._student_t = student_t
+        self._sigma = sigma
 
-    def get_params(self) -> dict[str, float]:
+    @property
+    def alpha(self) -> float:
+        return self._alpha
+
+    @property
+    def sigma(self) -> float | None:
+        return self._sigma
+
+    def get_params(self) -> dict[str, float | None]:
         return {"alpha": self.alpha, "sigma": self.sigma}
 
-    def _append_steps(self, mom: TtestMoment, x0: int = 0):
-        if len(mom) < 3:
-            return None
-        tk, dx = mom.get_optimal_splitter()
-        t_cri = self._student_t.ppf(1 - self.alpha / 2, len(mom))
-        if t_cri < tk / self.sigma:
-            self.step_positions.append(x0 + dx)
-            mom1, mom2 = mom.split(dx)
-            self._append_steps(mom1, x0=x0)
-            self._append_steps(mom2, x0=x0 + dx)
-        else:
-            pass
-        return None
-
-    def _continue(self, s):
-        # just for now
-        pass
+    def _moment_from_array(self, data):
+        sigma = normalize_sigma(self._sigma, data)
+        alpha = self._alpha
+        return TtestMoment(*TtestMoment.calculate_fw_bw(data), alpha, sigma)

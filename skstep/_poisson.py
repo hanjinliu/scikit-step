@@ -1,13 +1,25 @@
 from __future__ import annotations
+from typing import Any
 import numpy as np
-from numpy.typing import ArrayLike
-from scipy.special import gammaln, logsumexp
-from ._base import MomentBase, RecursiveStepFinder, TransitionProbabilityMixin
+from numpy.typing import ArrayLike, NDArray
+from ._utils import calculate_penalty
+from ._moments import RecursiveMoment
+from ._base import RecursiveStepFinder, TransitionProbabilityMixin
 
 _EPS = 1e-12
 
 
-class PoissonMoment(MomentBase):
+class PoissonMoment(RecursiveMoment):
+    def __init__(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+        penalty: float,
+    ):
+        super().__init__(fw, bw, total)
+        self._penalty = penalty
+
     @property
     def slogm(self):
         return self.total[0] * np.log((self.total[0] + _EPS) / len(self))
@@ -20,27 +32,59 @@ class PoissonMoment(MomentBase):
         x = np.argmax(slogm)
         return slogm[x] - self.slogm, x + 1
 
+    def _continue(self, dlogL: Any) -> bool:
+        return self._penalty + dlogL > 0
+
+    def with_fw_bw(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+    ) -> PoissonMoment:
+        """Return a new Moment object with the given array."""
+        return self.__class__(fw, bw, total, self._penalty)
+
 
 class PoissonStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
     Poisson distribution step finding.
     """
 
-    _MOMENT_CLASS = PoissonMoment
+    def __init__(self, prob: float | None = None):
+        self._prob = prob
 
-    def __init__(self, data: ArrayLike, prob: float | None = None):
-        super().__init__(data)
-        if not np.issubdtype(self.data.dtype, np.integer):
-            raise TypeError("In PoissonStep, non-integer data type is forbidden.")
+    @property
+    def prob(self) -> float | None:
+        return self._prob
 
-        self._init_probability(prob)
-
-    def _continue(self, dlogL):
-        return self.penalty + dlogL > 0
+    def _moment_from_array(self, data):
+        penalty = calculate_penalty(data, self._prob)
+        return PoissonMoment(*PoissonMoment.calculate_fw_bw(data), penalty)
 
 
-class BayesianPoissonMoment(MomentBase):
+class BayesianPoissonMoment(RecursiveMoment):
+    def __init__(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+        skept: float,
+    ):
+        super().__init__(fw, bw, total)
+        self._skept = skept
+
+    def with_fw_bw(
+        self,
+        fw: NDArray[np.number],
+        bw: NDArray[np.number],
+        total: NDArray[np.number],
+    ) -> BayesianPoissonMoment:
+        """Return a new Moment object with the given array."""
+        return self.__class__(fw, bw, total, self._skept)
+
     def get_optimal_splitter(self):
+        from scipy.special import gammaln, logsumexp
+
         n = np.arange(1, len(self))
         g1 = gammaln(self.fw[0] + 1)
         g2 = gammaln(self.bw[0] + 1)
@@ -59,6 +103,9 @@ class BayesianPoissonMoment(MomentBase):
         logBayesFactor = logC + logsumexp(logprob)
         return logBayesFactor, np.argmax(logprob) + 1
 
+    def _continue(self, logbf: float) -> bool:
+        return np.log(self._skept) < logbf
+
 
 class BayesianPoissonStepFinder(RecursiveStepFinder):
     """
@@ -71,18 +118,20 @@ class BayesianPoissonStepFinder(RecursiveStepFinder):
     B, 114(1), 280-292. https://doi.org/10.1021/jp906786b
     """
 
-    _MOMENT_CLASS = BayesianPoissonMoment
-
     def __init__(self, data: ArrayLike, skept: float = 4):
-        super().__init__(data)
         if skept <= 0:
             raise ValueError(f"`skept` must be larger than 0, but got {skept}")
-        self.skept = skept
-        if not np.issubdtype(self.data.dtype, np.integer):
-            raise TypeError("In PoissonStep, non-integer data type is forbidden.")
+        self._skept = skept
+
+    @property
+    def skept(self) -> float:
+        return self._skept
 
     def get_params(self) -> dict[str, float]:
         return {"skept": self.skept}
 
-    def _continue(self, logbf):
-        return np.log(self.skept) < logbf
+    def _moment_from_array(self, data):
+        return BayesianPoissonMoment(
+            *BayesianPoissonMoment.calculate_fw_bw(data),
+            self._skept,
+        )
