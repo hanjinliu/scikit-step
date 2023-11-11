@@ -15,11 +15,7 @@ def test_fit_float(
     step_finder: type[sks.GaussStepFinder],
     param: float,
 ):
-    rng = np.random.default_rng(0)
-    data = np.concatenate([
-        rng.normal(0.0, 1.0, size=322),
-        rng.normal(4.8, 1.0, size=678)
-    ])
+    data = sks.GaussSampler([322, 1000], [0.0, 4.8]).sample(1.0, seed=0)
 
     f = step_finder(param)
 
@@ -35,11 +31,7 @@ def test_fit_float(
     ],
 )
 def test_fit_integer(step_finder: type[sks.PoissonStepFinder], param: float):
-    rng = np.random.default_rng(0)
-    data = np.concatenate([
-        rng.poisson(9.7, size=322),
-        rng.poisson(52.2, size=678)
-    ])
+    data = sks.PoissonSampler([322, 1000], [9.7, 52.2]).sample(seed=0)
 
     f = step_finder(param)
 

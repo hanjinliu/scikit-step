@@ -39,7 +39,7 @@ class FitResult:
         out = np.empty(self.nsteps)
         pos = self.step_positions
         for i in range(self.nsteps):
-            subset = self.data[pos[i] : pos[i + 1]]
+            subset = self._data[pos[i] : pos[i + 1]]
             out[i] = subset.mean()
         return out
 
@@ -58,8 +58,9 @@ class FitResult:
         """The fitted data."""
         out = np.empty(self.data.size)
         means = self.means
+        pos = self.step_positions
         for i in range(self.nsteps):
-            out[self.step_positions[i] : self.step_positions[i + 1]] = means[i]
+            out[pos[i] : pos[i + 1]] = means[i]
         return out
 
     def plot(self, range: tuple[int, int] | None = None):
