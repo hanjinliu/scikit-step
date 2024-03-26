@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import Any
 import numpy as np
 from numpy.typing import NDArray
-from ._base import RecursiveStepFinder
-from ._moments import RecursiveMoment
-from ._utils import normalize_sigma
+from skstep._base import RecursiveStepFinder
+from skstep._moments import RecursiveMoment
+from skstep._utils import normalize_sigma
 
 
 class TtestMoment(RecursiveMoment):

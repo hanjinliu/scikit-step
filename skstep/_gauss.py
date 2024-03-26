@@ -9,9 +9,9 @@ from ._base import (
     RecursiveStepFinder,
     TransitionProbabilityMixin,
 )
-from ._moments import MomentBase, RecursiveMoment
-from ._utils import normalize_sigma, calculate_penalty
-from ._results import FitResult
+from skstep._moments import MomentBase, RecursiveMoment
+from skstep._utils import normalize_sigma, calculate_penalty
+from skstep._results import FitResult
 
 _HeapItem = Tuple[float, int, int, "GaussMoment"]
 

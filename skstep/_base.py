@@ -3,8 +3,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from abc import ABC, abstractmethod
-from ._moments import MomentBase, RecursiveMoment
-from ._results import FitResult
+from skstep._moments import MomentBase, RecursiveMoment
+from skstep._results import FitResult
 
 # Ideally we should prepare `n = np.arange(1, len(data))` first, and view
 # it many times in get_optimal_splitter like n[:len(self.fw)], but this

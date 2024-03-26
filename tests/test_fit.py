@@ -1,6 +1,5 @@
 from __future__ import annotations
 import skstep as sks
-import numpy as np
 import pytest
 
 

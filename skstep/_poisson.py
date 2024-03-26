@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from ._utils import calculate_penalty
-from ._moments import RecursiveMoment
-from ._base import RecursiveStepFinder, TransitionProbabilityMixin
+from skstep._utils import calculate_penalty
+from skstep._moments import RecursiveMoment
+from skstep._base import RecursiveStepFinder, TransitionProbabilityMixin
 
 _EPS = 1e-12
 
