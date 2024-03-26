@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 from skstep._utils import calculate_penalty
 from skstep._moments import RecursiveMoment
 from skstep._base import RecursiveStepFinder, TransitionProbabilityMixin
@@ -46,9 +46,7 @@ class PoissonMoment(RecursiveMoment):
 
 
 class PoissonStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
-    """
-    Poisson distribution step finding.
-    """
+    """Poisson distribution step finding."""
 
     def __init__(self, prob: float | None = None):
         self._prob = prob
@@ -118,7 +116,7 @@ class BayesianPoissonStepFinder(RecursiveStepFinder):
     B, 114(1), 280-292. https://doi.org/10.1021/jp906786b
     """
 
-    def __init__(self, data: ArrayLike, skept: float = 4):
+    def __init__(self, skept: float = 4.0):
         if skept <= 0:
             raise ValueError(f"`skept` must be larger than 0, but got {skept}")
         self._skept = skept

@@ -17,9 +17,7 @@ _HeapItem = Tuple[float, int, int, "GaussMoment"]
 
 
 class Heap:
-    """
-    Priorty queue. I wrapped heapq because it is not intuitive.
-    """
+    """Priorty queue."""
 
     def __init__(self):
         self.heap = []
@@ -51,6 +49,15 @@ class GaussStepFinder(TransitionProbabilityMixin, StepFinderBase):
     """
     Kalafut-Visscher's step finding algorithm on data with Gaussian noise.
 
+    >>> sf = GaussStepFinder(prob=0.01)
+    >>> result = sf.fit(data)
+
+    Parameters
+    ----------
+    prob : float, optional
+        Probability of transition (signal change). If not in a proper range 0 < p < 0.5,
+        then This algorithm will be identical to the original Kalafut-Visscher's.
+
     Reference
     ---------
     Kalafut, B., & Visscher, K. (2008). An objective, model-independent method for
@@ -59,23 +66,18 @@ class GaussStepFinder(TransitionProbabilityMixin, StepFinderBase):
     """
 
     def __init__(self, prob: float | None = None):
-        """
-        Parameters
-        ----------
-        prob : float, optional
-            Probability of transition (signal change). If not in a proper range 0<p<0.5,
-            then This algorithm will be identical to the original Kalafut-Visscher's.
-        """
         self._prob = prob
 
     @property
     def prob(self) -> float | None:
+        """Transition probability."""
         return self._prob
 
     def _moment_from_array(self, data):
         return GaussMoment(*GaussMoment.calculate_fw_bw(data))
 
-    def fit(self, data: ArrayLike):
+    def fit(self, data: ArrayLike) -> FitResult:
+        """Fit data and return step fit result."""
         data = np.asarray(data)
         g = self._moment_from_array(data)
         chi2 = g.chi2  # initialize total chi^2
@@ -147,12 +149,12 @@ class SDFixedGaussStepFinder(TransitionProbabilityMixin, RecursiveStepFinder):
     """
     Gauss-distribution step finding with fixed standard deviation of noise
 
-    If standard deviation of noise is unknown then it will be estimated by
-    wavelet method. Compared to GaussStep, this algorithm detects more steps
-    in some cases and less in others.
+    If standard deviation of noise is unknown then it will be estimated by wavelet
+    method. Compared to GaussStep, this algorithm detects more steps in some cases and
+    less in others.
     """
 
-    def __init__(self, prob: float | None, sigma: float | None = None):
+    def __init__(self, prob: float | None = None, sigma: float | None = None):
         self._prob = prob
         self._sigma = sigma
 

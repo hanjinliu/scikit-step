@@ -35,6 +35,7 @@ class StepFinderBase(ABC):
         overlap: int = 2500,
         scheduler="threads",
     ) -> FitResult:
+        """Run fitting algorithm chunkwise."""
         data = np.asarray(data)
         if data.ndim != 1:
             raise ValueError("data must be 1-dimensional.")
